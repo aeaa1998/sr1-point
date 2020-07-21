@@ -135,10 +135,14 @@ class Render(object):
             pass  # do nothing if no wand is installed
 
 
+    # Now glVertex is not the encharged to print he only normalizes the cordenates of a single point
     def glVertex(self, x, y):
         currentYCordinate =  self.viewPort.y + (self.viewPort.height/2) * (y + 1)
         currentXCordinate = self.viewPort.x + (self.viewPort.width/2) * (x + 1)
-        self.framebuffer[int(currentYCordinate)][int(currentXCordinate)] = self.paintColor
+        self.point(currentXCordinate, currentYCordinate)
+
+    def point(self, normalizedX, normalizedY):
+        self.framebuffer[int(normalizedX)][int(normalizedY)] = self.paintColor
 
     def glClearColor(self, r, g, b):
         self.bufferColor = color(r,g,b)
@@ -146,5 +150,42 @@ class Render(object):
     def glColor(self, r, g, b):
         self.paintColor= color(r,g,b)
 
+    def line(self, start, end):
+        x1, y1 = start
+        x2, y2 = end
+        y1 = self.viewPort.y + (self.viewPort.height / 2) * (y1 + 1)
+        y2 = self.viewPort.y + (self.viewPort.height / 2) * (y2 + 1)
+        x1 = self.viewPort.x + (self.viewPort.width / 2) * (x1 + 1)
+        x2 = self.viewPort.x + (self.viewPort.width / 2) * (x2 + 1)
+
+        dy = abs(y2 - y1)
+        dx = abs(x2 - x1)
+        steep = dy > dx
+
+        if steep:
+            x1, y1 = y1, x1
+            x2, y2 = y2, x2
+
+        if x1 > x2:
+            x1, x2 = x2, x1
+            y1, y2 = y2, y1
+
+        dy = abs(y2 - y1)
+        dx = abs(x2 - x1)
+
+        offset = 0
+        threshold = dx
+
+        y = y1
+        for x in range(int(x1), int(x2) + 1):
+            if steep:
+                self.point(y, x)
+            else:
+                self.point(x, y)
+
+            offset += dy * 2
+            if offset >= threshold:
+                y += 1 if y1 < y2 else -1
+                threshold += dx * 2
 
 
