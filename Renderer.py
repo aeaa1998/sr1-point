@@ -150,34 +150,28 @@ class Render(object):
     def glColor(self, r, g, b):
         self.paintColor= color(r,g,b)
 
-    def line(self, start, end):
-        x1, y1 = start
-        x2, y2 = end
+    def line(self, x0, y0, x1, y1):
+        y0 = self.viewPort.y + (self.viewPort.height / 2) * (y0 + 1)
         y1 = self.viewPort.y + (self.viewPort.height / 2) * (y1 + 1)
-        y2 = self.viewPort.y + (self.viewPort.height / 2) * (y2 + 1)
+        x0 = self.viewPort.x + (self.viewPort.width / 2) * (x0 + 1)
         x1 = self.viewPort.x + (self.viewPort.width / 2) * (x1 + 1)
-        x2 = self.viewPort.x + (self.viewPort.width / 2) * (x2 + 1)
-
-        dy = abs(y2 - y1)
-        dx = abs(x2 - x1)
+        dy = abs(y1 - y0)
+        dx = abs(x1 - x0)
         steep = dy > dx
-
         if steep:
+            x0, y0 = y0, x0
             x1, y1 = y1, x1
-            x2, y2 = y2, x2
+        if x0 > x1:
+            x0, x1 = x1, x0
+            y0, y1 = y1, y0
 
-        if x1 > x2:
-            x1, x2 = x2, x1
-            y1, y2 = y2, y1
-
-        dy = abs(y2 - y1)
-        dx = abs(x2 - x1)
-
+        dy = abs(y1 - y0)
+        dx = abs(x1 - x0)
         offset = 0
         threshold = dx
 
-        y = y1
-        for x in range(int(x1), int(x2) + 1):
+        y = y0
+        for x in range(int(x0), int(x1) + 1):
             if steep:
                 self.point(y, x)
             else:
@@ -185,7 +179,6 @@ class Render(object):
 
             offset += dy * 2
             if offset >= threshold:
-                y += 1 if y1 < y2 else -1
+                y += 1 if y0 < y1 else -1
                 threshold += dx * 2
-
 
