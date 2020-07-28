@@ -1,4 +1,5 @@
 import struct
+import math
 
 
 # ===============================================================
@@ -59,6 +60,12 @@ class ViewPort(object):
         self.y = y
         self.width = width
         self.height = height
+
+class Point(object):
+
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
 
 
 
@@ -137,12 +144,12 @@ class Render(object):
 
     # Now glVertex is not the encharged to print he only normalizes the cordenates of a single point
     def glVertex(self, x, y):
-        currentYCordinate =  self.viewPort.y + (self.viewPort.height/2) * (y + 1)
-        currentXCordinate = self.viewPort.x + (self.viewPort.width/2) * (x + 1)
+        currentYCordinate =  self.viewPort.y + (self.viewPort.height//2) * (y + 1)
+        currentXCordinate = self.viewPort.x + (self.viewPort.width//2) * (x + 1)
         self.point(currentXCordinate, currentYCordinate)
 
     def point(self, normalizedX, normalizedY):
-        self.framebuffer[int(normalizedX)][int(normalizedY)] = self.paintColor
+        self.framebuffer[int(normalizedY)][int(normalizedX)] = self.paintColor
 
     def glClearColor(self, r, g, b):
         self.bufferColor = color(r,g,b)
@@ -150,11 +157,45 @@ class Render(object):
     def glColor(self, r, g, b):
         self.paintColor= color(r,g,b)
 
-    def line(self, x0, y0, x1, y1):
-        y0 = self.viewPort.y + (self.viewPort.height / 2) * (y0 + 1)
-        y1 = self.viewPort.y + (self.viewPort.height / 2) * (y1 + 1)
-        x0 = self.viewPort.x + (self.viewPort.width / 2) * (x0 + 1)
-        x1 = self.viewPort.x + (self.viewPort.width / 2) * (x1 + 1)
+    def line(self, x0, y0, x1, y1, transform = True):
+        if transform:
+            y0 = self.viewPort.y + (self.viewPort.height // 2) * (y0 + 1)
+            y1 = self.viewPort.y + (self.viewPort.height // 2) * (y1 + 1)
+            x0 = self.viewPort.x + (self.viewPort.width // 2) * (x0 + 1)
+            x1 = self.viewPort.x + (self.viewPort.width // 2) * (x1 + 1)
+        dy = abs(y1 - y0)
+        dx = abs(x1 - x0)
+        steep = dy > dx
+        if steep:
+            x0, y0 = y0, x0
+            x1, y1 = y1, x1
+        if x0 > x1:
+            x0, x1 = x1, x0
+            y0, y1 = y1, y0
+
+        dy = abs(y1 - y0)
+        dx = abs(x1 - x0)
+        offset = 0
+        threshold = 0.5 * 2 * dx
+
+        y = y0
+        for x in range(x0, x1 + 1):
+            if steep:
+                self.point(y, x)
+            else:
+                self.point(x, y)
+
+            offset += dy * 2
+            if offset >= threshold:
+                y += 1 if y0 < y1 else -1
+                threshold += dx * 2
+
+    def getLine(self, x0, y0, x1, y1):
+        linePoints = []
+        # y0 = self.viewPort.y + (self.viewPort.height / 2) * (y0 + 1)
+        # y1 = self.viewPort.y + (self.viewPort.height / 2) * (y1 + 1)
+        # x0 = self.viewPort.x + (self.viewPort.width / 2) * (x0 + 1)
+        # x1 = self.viewPort.x + (self.viewPort.width / 2) * (x1 + 1)
         dy = abs(y1 - y0)
         dx = abs(x1 - x0)
         steep = dy > dx
@@ -173,12 +214,49 @@ class Render(object):
         y = y0
         for x in range(int(x0), int(x1) + 1):
             if steep:
-                self.point(y, x)
+                linePoints.append(Point(y, x))
             else:
-                self.point(x, y)
+                linePoints.append(Point(x, y))
 
             offset += dy * 2
             if offset >= threshold:
                 y += 1 if y0 < y1 else -1
                 threshold += dx * 2
+        return linePoints
+
+    def drawLines(self, polygon):
+        yPointsLines = []
+        xPointsLines = []
+        lines = []
+
+        for index, point in enumerate(polygon.points):
+            point2 = polygon.points[(index + 1) % len(polygon.points)]
+            line = self.getLine(point[0], point[1], point2[0], point2[1])
+            self.line(point[0], point[1], point2[0], point2[1], False)
+            for lp in line:
+                lines.append(lp)
+                yPointsLines.append(lp.y)
+                xPointsLines.append(lp.x)
+
+        # centerY = self.viewPort.height / 2
+        # centerX = self.viewPort.width / 2
+
+
+        minY = min(yPointsLines)
+        maxY = max(yPointsLines)
+        minX = min(xPointsLines)
+        maxX = max(xPointsLines)
+        for indexX in range(minX, maxX):
+            iterableLinesX = [line for line in lines if line.x == indexX]
+            for indexY in range(minY, maxY):
+                iterableLinesY = [linep for linep in lines if linep.y == indexY]
+                if minY < indexY < maxY:
+                    if minX < indexX < maxX:
+                        if any(i.y <= indexY for i in iterableLinesX) and any(i.y >= indexY for i in iterableLinesX):
+                            if any(i.x <= indexX for i in iterableLinesY) and any(i.x >= indexX for i in iterableLinesY):
+                                self.point(indexX, indexY)
+
+
+
+
 
