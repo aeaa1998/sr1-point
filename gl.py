@@ -1,10 +1,14 @@
 from Renderer import Render, GREEN, BLUE
 from polygon import Polygon
+from fakers import V2, V3
+from collections import namedtuple
+V2 = namedtuple('Point2', ['x', 'y'])
+V3 = namedtuple('Point3', ['x', 'y', 'z'])
 
 bitmap = Render()
 bitmap.glInit()
-bitmap.glCreateWindow(1000,500)
-bitmap.glViewPort(30,30,800,800)
+bitmap.glCreateWindow(1000,1000)
+# bitmap.glViewPort(30,30,900,900)
 # bitmap.glColor(50, 168, 82)
 # bitmap.glVertex(0,1)
 # bitmap.glVertex(1,1)
@@ -17,7 +21,9 @@ bitmap.glViewPort(30,30,800,800)
 # poly2 = Polygon(polyList2)
 # bitmap.drawLines(poly)
 # bitmap.drawLines(poly2)
-bitmap.load("./cube2.obj", (4, 3), (100, 100))
+bitmap.load("./sphere.obj", (1, 1, 1), (500, 500, 500))
+# bitmap.triangle(V3(554, 260, 497), V3(554, 300, 497), V3(400, 265, 506), 1)
 bitmap.glFinish()
+
 
 

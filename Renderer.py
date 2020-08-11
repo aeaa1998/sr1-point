@@ -1,11 +1,113 @@
 import struct
 from obj import Obj
 import math
+import random
+from fakers import V2, V3
+from collections import namedtuple
 
+
+# Math utilities
+def bbox(*vertices):
+  """
+    Input: n size 2 vectors
+    Output: 2 size 2 vectors defining the smallest bounding rectangle possible
+  """
+  xs = [ vertex.x for vertex in vertices ]
+  ys = [ vertex.y for vertex in vertices ]
+  xs.sort()
+  ys.sort()
+
+  return V2(xs[0], ys[0]), V2(xs[-1], ys[-1])
+
+def barycentric(A, B, C, P):
+  """
+    Input: 3 size 2 vectors and a point
+    Output: 3 barycentric coordinates of the point in relation to the triangle formed
+            * returns -1, -1, -1 for degenerate triangles
+  """
+  cx, cy, cz = cross(
+    V3(B.x - A.x, C.x - A.x, A.x - P.x),
+    V3(B.y - A.y, C.y - A.y, A.y - P.y)
+  )
+
+  if abs(cz) < 1:
+    return -1, -1, -1   # this triangle is degenerate, return anything outside
+
+  # [cx cy cz] = [u v 1]
+
+  u = cx/cz
+  v = cy/cz
+  w = 1 - (u + v)
+
+  return w, v, u
+
+
+V2 = namedtuple('Point2', ['x', 'y'])
+V3 = namedtuple('Point3', ['x', 'y', 'z'])
+
+
+def sum(v0, v1):
+  """
+    Input: 2 size 3 vectors
+    Output: Size 3 vector with the per element sum
+  """
+  return V3(v0.x + v1.x, v0.y + v1.y, v0.z + v1.z)
+
+def sub(v0, v1):
+  """
+    Input: 2 size 3 vectors
+    Output: Size 3 vector with the per element substraction
+  """
+  return V3(v0.x - v1.x, v0.y - v1.y, v0.z - v1.z)
+
+def mul(v0, k):
+  """
+    Input: 2 size 3 vectors
+    Output: Size 3 vector with the per element multiplication
+  """
+  return V3(v0.x * k, v0.y * k, v0.z *k)
+
+def dot(v0, v1):
+  """
+    Input: 2 size 3 vectors
+    Output: Scalar with the dot product
+  """
+  return v0.x * v1.x + v0.y * v1.y + v0.z * v1.z
+
+def cross(v0, v1):
+  """
+    Input: 2 size 3 vectors
+    Output: Size 3 vector with the cross product
+  """
+  return V3(
+    v0.y * v1.z - v0.z * v1.y,
+    v0.z * v1.x - v0.x * v1.z,
+    v0.x * v1.y - v0.y * v1.x,
+  )
+def length(v0):
+  """
+    Input: 1 size 3 vector
+    Output: Scalar with the length of the vector
+  """
+  return (v0.x**2 + v0.y**2 + v0.z**2)**0.5
+
+def norm(v0):
+  """
+    Input: 1 size 3 vector
+    Output: Size 3 vector with the normal of the vector
+  """
+  v0length = length(v0)
+
+  if not v0length:
+    return V3(0, 0, 0)
+
+  return V3(v0.x/v0length, v0.y/v0length, v0.z/v0length)
 
 # ===============================================================
 # Utilities
 # ===============================================================
+
+
 
 def char(c):
     """
@@ -81,6 +183,43 @@ class Render(object):
         self.paintColor = WHITE
         self.bufferColor = BLACK
 
+    def validateRanges(self, upper, lower, percent):
+        return upper[0] >= percent >= upper[1] or lower[0] >= percent >= lower[1]
+
+
+
+    def shader(self, x, y, z, intensity):
+
+
+        intensity = 1
+        if z > 720:
+            return color(int(195 * intensity), int(233 * intensity), int(236 * intensity))
+        elif z > 700:
+            return color(int(183 * intensity), int(221 * intensity), int(224 * intensity))
+        elif z > 675:
+            return color(int(171 * intensity), int(208 * intensity), int(216 * intensity))
+        elif z > 660:
+            return color(int(166 * intensity), int(200 * intensity), int(208 * intensity))
+        elif z > 650:
+            return color(int(155 * intensity), int(192 * intensity), int(200 * intensity))
+        elif z > 640:
+            return color(int(152 * intensity), int(187 * intensity), int(197 * intensity))
+        elif z > 630:
+            return color(int(147 * intensity), int(184 * intensity), int(192 * intensity))
+        elif z > 615:
+            return color(int(137 * intensity), int(174 * intensity), int(182 * intensity))
+        elif z > 590:
+            return color(int(126 * intensity), int(161 * intensity), int(167 * intensity))
+        elif z > 575:
+            return color(int(100 * intensity), int(138 * intensity), int(141 * intensity))
+        else:
+            return color(int(83 * intensity), int(103 * intensity), int(109 * intensity))
+
+    def grayShader(self, x, y, z, intensity):
+        scaledGray = int(255 * intensity)
+        # print((z-500)/(800-500))
+        return color(scaledGray, scaledGray, scaledGray)
+
 
     def glInit(self):
         self.viewPort = ViewPort()
@@ -97,6 +236,10 @@ class Render(object):
     def glClear(self):
         self.framebuffer = [
             [self.bufferColor for x in range(self.width)]
+            for y in range(self.height)
+        ]
+        self.zbuffer = [
+            [-float('inf') for x in range(self.width)]
             for y in range(self.height)
         ]
 
@@ -149,8 +292,11 @@ class Render(object):
         currentXCordinate = self.viewPort.x + (self.viewPort.width//2) * (x + 1)
         self.point(currentXCordinate, currentYCordinate)
 
-    def point(self, normalizedX, normalizedY):
-        self.framebuffer[int(normalizedY)][int(normalizedX)] = self.paintColor
+    def point(self, normalizedX, normalizedY, color = None):
+        if color is None:
+            self.framebuffer[int(normalizedY)][int(normalizedX)] = self.paintColor
+        else:
+            self.framebuffer[int(normalizedY)][int(normalizedX)] = color
 
     def glClearColor(self, r, g, b):
         self.bufferColor = color(r,g,b)
@@ -259,23 +405,83 @@ class Render(object):
 
     def load(self, filename, translate, scale):
         model = Obj(filename)
+        light = V3(0, 0, 1)
 
         for face in model.faces:
             vcount = len(face)
 
-            for j in range(vcount):
-                f1 = face[j][0]
-                f2 = face[(j + 1) % vcount][0]
+            if vcount == 3:
+                f1 = face[0][0] - 1
+                f2 = face[1][0] - 1
+                f3 = face[2][0] - 1
 
-                v1 = model.vertices[f1 - 1]
-                v2 = model.vertices[f2 - 1]
+                a = self.transform(model.vertices[f1], translate, scale)
+                b = self.transform(model.vertices[f2], translate, scale)
+                c = self.transform(model.vertices[f3], translate, scale)
 
-                x1 = round((v1[0] + translate[0]) * scale[0])
-                y1 = round((v1[1] + translate[1]) * scale[1])
-                x2 = round((v2[0] + translate[0]) * scale[0])
-                y2 = round((v2[1] + translate[1]) * scale[1])
+                normal = norm(cross(sub(b, a), sub(c, a)))
+                intensity = dot(normal, light)
+                grey = round(255 * intensity)
+                if grey < 0:
+                    continue
+                self.triangle(a, b, c, intensity)
+            else:
+                # assuming 4
+                f1 = face[0][0] - 1
+                f2 = face[1][0] - 1
+                f3 = face[2][0] - 1
+                f4 = face[3][0] - 1
 
-                self.line(x1, y1, x2, y2, False)
+                vertices = [
+                    self.transform(model.vertices[f1], translate, scale),
+                    self.transform(model.vertices[f2], translate, scale),
+                    self.transform(model.vertices[f3], translate, scale),
+                    self.transform(model.vertices[f4], translate, scale)
+                ]
+
+                normal = norm(cross(sub(vertices[0], vertices[1]),
+                                    sub(vertices[1], vertices[2])))  # no necesitamos dos normales!!
+                intensity = dot(normal, light)
+                grey = round(255)
+                if grey < 0:
+                    continue
+
+
+                A, B, C, D = vertices
+
+                self.triangle(A, B, C, intensity)
+                self.triangle(A, C, D, intensity)
+
+    def triangle(self, A, B, C, intensity, color=None):
+        bbox_min, bbox_max = bbox(A, B, C)
+
+        for x in range(bbox_min.x, bbox_max.x + 1):
+            for y in range(bbox_min.y, bbox_max.y + 1):
+                w, v, u = barycentric(A, B, C, V2(x, y))
+                if w < 0 or v < 0 or u < 0:  # 0 is actually a valid value! (it is on the edge)
+                    continue
+
+                z = A.z * w + B.z * v + C.z * u
+                if x < 0 or y < 0:
+                    continue
+                try:
+                    if x < len(self.zbuffer) and y < len(self.zbuffer[x]) and z > self.zbuffer[x][y]:
+                        if color is None:
+                            self.point(x, y, self.grayShader(x,y,z, intensity))
+                        else:
+                            self.point(x, y, color)
+                        self.zbuffer[x][y] = z
+                except Exception as e:
+                    # print(e)
+                    e.args
+
+    def transform(self, vertex, translate=(0, 0, 0), scale=(1, 1, 1)):
+        # returns a vertex 3, translated and transformed
+        return V3(
+            round((vertex[0] + translate[0]) * scale[0]),
+            round((vertex[1] + translate[1]) * scale[1]),
+            round((vertex[2] + translate[2]) * scale[2])
+        )
 
 
 
